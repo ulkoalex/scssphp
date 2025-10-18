@@ -4889,6 +4889,46 @@ class Compiler
     }
 
     /**
+     * Normalize color function arguments (handle space-separated syntax)
+     *
+     * @param array $args
+     * @param int $expectedCount
+     *
+     * @return array
+     */
+    protected function normalizeColorArgs($args, $expectedCount)
+    {
+        // Check if first arg is a list (space-separated syntax)
+        if (isset($args[0]) && is_array($args[0]) && $args[0][0] === Type::T_LIST) {
+            $listItems = $args[0][2]; // Get the list items
+            
+            // Flatten the list items, handling slash-separated values
+            $normalizedItems = [];
+            foreach ($listItems as $item) {
+                if (is_array($item) && $item[0] === Type::T_STRING && is_array($item[2] ?? [])) {
+                    // This is a string like "48% / 50%" - extract just the numbers
+                    foreach ($item[2] as $part) {
+                        if ($part instanceof Node\Number) {
+                            $normalizedItems[] = $part;
+                        }
+                    }
+                } else {
+                    $normalizedItems[] = $item;
+                }
+            }
+            
+            // Pad with nulls if needed
+            while (count($normalizedItems) < $expectedCount) {
+                $normalizedItems[] = 0;
+            }
+            
+            return array_slice($normalizedItems, 0, $expectedCount);
+        }
+        
+        return $args;
+    }
+
+    /**
      * Convert HSL to RGB
      *
      * @api
@@ -5009,6 +5049,8 @@ class Compiler
     protected static $libRgb = ['red', 'green', 'blue'];
     protected function libRgb($args)
     {
+        // Handle space-separated syntax: rgb(255 255 255)
+        $args = $this->normalizeColorArgs($args, 3);
         list($r, $g, $b) = $args;
 
         return [Type::T_COLOR, $r[1], $g[1], $b[1]];
@@ -5019,15 +5061,23 @@ class Compiler
         'green', 'blue', 'alpha'];
     protected function libRgba($args)
     {
+        // Handle space-separated syntax: rgba(255 255 255 50%)
+        $args = $this->normalizeColorArgs($args, 4);
         if ($color = $this->coerceColor($args[0])) {
             $num = isset($args[3]) ? $args[3] : $args[1];
             $alpha = $this->assertNumber($num);
+            if ($alpha > 1) {
+                $alpha = $alpha / 100;
+            }
             $color[4] = $alpha;
 
             return $color;
         }
 
         list($r, $g, $b, $a) = $args;
+        if (($a[1] ?? 0) > 1) {
+			$a[1] = $a[1] / 100;
+		}
 
         return [Type::T_COLOR, $r[1], $g[1], $b[1], $a[1]];
     }
@@ -5224,6 +5274,8 @@ class Compiler
     protected static $libHsl = ['hue', 'saturation', 'lightness'];
     protected function libHsl($args)
     {
+        // Handle space-separated syntax: hsl(180deg 50% 50%)
+        $args = $this->normalizeColorArgs($args, 3);
         list($h, $s, $l) = $args;
 
         return $this->toRGB($h[1], $s[1], $l[1]);
@@ -5232,9 +5284,14 @@ class Compiler
     protected static $libHsla = ['hue', 'saturation', 'lightness', 'alpha'];
     protected function libHsla($args)
     {
+        // Handle space-separated syntax: hsla(180deg 50% 58% / 50%)
+        $args = $this->normalizeColorArgs($args, 4);
         list($h, $s, $l, $a) = $args;
 
         $color = $this->toRGB($h[1], $s[1], $l[1]);
+        if (($a[1] ?? 0) > 1) {
+			$a[1] = $a[1] / 100;
+		}
         $color[4] = $a[1];
 
         return $color;
