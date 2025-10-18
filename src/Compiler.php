@@ -5064,7 +5064,7 @@ class Compiler
         // Handle space-separated syntax: rgba(255 255 255 50%)
         $args = $this->normalizeColorArgs($args, 4);
         if ($color = $this->coerceColor($args[0])) {
-            $num = isset($args[3]) ? $args[3] : $args[1];
+            $num = isset($args[3]) && is_array($args[3]) ? $args[3] : $args[1];
             $alpha = $this->assertNumber($num);
             if ($alpha > 1) {
                 $alpha = $alpha / 100;
