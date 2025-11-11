@@ -4888,6 +4888,22 @@ class Compiler
         return $m1;
     }
 
+    protected function normalizeStringArgs($args) {
+        $normalizedArgs = [];
+        if (is_array($args[0][2] ?? null)) {
+            foreach ($args[0][2] as $part) {
+                if ($part instanceof Node\Number) {
+                    $normalizedArgs[] = $part;
+                }
+                if (is_array($part)) {
+                    $normalizedArgs[] = $part;
+                }
+            }
+        }
+
+        return $normalizedArgs;
+    }
+
     /**
      * Normalize color function arguments (handle space-separated syntax)
      *
@@ -4899,22 +4915,43 @@ class Compiler
      */
     protected function normalizeColorArgs($args, $expectedCount, $supportColor = false)
     {
+        if (is_array($args[0] ?? null) && ($args[0][0] ?? null) === Type::T_STRING) {
+            // ['string', '', ['list', '', ['color', 123, 123, 123]], '', '/', '', Node\Number]
+            $args = $this->normalizeStringArgs($args);
+        }
+
         // Check if first arg is a list (space-separated syntax)
-        if (isset($args[0]) && is_array($args[0]) && $args[0][0] === Type::T_LIST) {
+        if (is_array($args[0] ?? null) && ($args[0][0] ?? null) === Type::T_LIST) {
             $listItems = $args[0][2]; // Get the list items
 
             // Flatten the list items, handling slash-separated values
             $normalizedItems = [];
-            foreach ($listItems as $item) {
-                if (is_array($item) && $item[0] === Type::T_STRING && is_array($item[2] ?? [])) {
-                    // This is a string like "48% / 50%" - extract just the numbers
-                    foreach ($item[2] as $part) {
-                        if ($part instanceof Node\Number) {
+
+            if (is_array($listItems[0] ?? null) && ($listItems[0][0] ?? null) === Type::T_LIST) {
+                // ['list', '', ['list', '', ['color', 123, 123, 123]]]
+                $normalizedItems = $this->normalizeColorArgs($listItems, $expectedCount, $supportColor);
+            } elseif (is_array($listItems[0] ?? null) && ($listItems[0][0] ?? null) === Type::T_COLOR) {
+                // ['color', 123, 123, 123]
+                $normalizedItems[] = $listItems[0];
+                // Check list items
+                if (($listItems[1] ?? null) instanceof Node\Number) {
+                    $normalizedItems[] = $listItems[1];
+                }
+                // Proceed with opacity from normal args if not empty
+                if (($args[1] ?? null) instanceof Node\Number) {
+                    $normalizedItems[] = $args[1];
+                }
+            } else {
+                foreach ($listItems as $item) {
+                    if (is_array($item) && ($item[0] ?? null) === Type::T_STRING && is_array($item[2] ?? null)) {
+                        // This is a string like "48% / 50%" - extract just the numbers
+                        $normalizedItem = $this->normalizeStringArgs($args);
+                        foreach ($normalizedItem as $part) {
                             $normalizedItems[] = $part;
                         }
+                    } else {
+                        $normalizedItems[] = $item;
                     }
-                } else {
-                    $normalizedItems[] = $item;
                 }
             }
 
