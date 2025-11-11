@@ -5057,6 +5057,9 @@ class Compiler
     {
         // Handle space-separated syntax: rgb(255 255 255)
         $args = $this->normalizeColorArgs($args, 3);
+        if ($color = $this->coerceColor($args[0])) {
+            return $color;
+        }
         list($r, $g, $b) = $args;
 
         return [Type::T_COLOR, $r[1], $g[1], $b[1]];
@@ -5282,6 +5285,9 @@ class Compiler
     {
         // Handle space-separated syntax: hsl(180deg 50% 50%)
         $args = $this->normalizeColorArgs($args, 3);
+        if ($color = $this->coerceColor($args[0])) {
+            return $color;
+        }
         list($h, $s, $l) = $args;
 
         return $this->toRGB($h[1], $s[1], $l[1]);
