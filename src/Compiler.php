@@ -4893,15 +4893,16 @@ class Compiler
      *
      * @param array $args
      * @param int $expectedCount
+     * @param bool $supportColor
      *
      * @return array
      */
-    protected function normalizeColorArgs($args, $expectedCount)
+    protected function normalizeColorArgs($args, $expectedCount, $supportColor = false)
     {
         // Check if first arg is a list (space-separated syntax)
         if (isset($args[0]) && is_array($args[0]) && $args[0][0] === Type::T_LIST) {
             $listItems = $args[0][2]; // Get the list items
-            
+
             // Flatten the list items, handling slash-separated values
             $normalizedItems = [];
             foreach ($listItems as $item) {
@@ -4916,15 +4917,20 @@ class Compiler
                     $normalizedItems[] = $item;
                 }
             }
-            
+
+            // First arg is a color
+            if ($supportColor && $this->coerceColor($normalizedItems[0])) {
+                return $normalizedItems;
+            }
+
             // Pad with nulls if needed
             while (count($normalizedItems) < $expectedCount) {
                 $normalizedItems[] = 0;
             }
-            
+
             return array_slice($normalizedItems, 0, $expectedCount);
         }
-        
+
         return $args;
     }
 
@@ -5062,7 +5068,7 @@ class Compiler
     protected function libRgba($args)
     {
         // Handle space-separated syntax: rgba(255 255 255 50%)
-        $args = $this->normalizeColorArgs($args, 4);
+        $args = $this->normalizeColorArgs($args, 4, true);
         if ($color = $this->coerceColor($args[0])) {
             $num = isset($args[3]) && is_array($args[3]) ? $args[3] : $args[1];
             $alpha = $this->assertNumber($num);
@@ -5285,7 +5291,18 @@ class Compiler
     protected function libHsla($args)
     {
         // Handle space-separated syntax: hsla(180deg 50% 58% / 50%)
-        $args = $this->normalizeColorArgs($args, 4);
+        $args = $this->normalizeColorArgs($args, 4, true);
+        if ($color = $this->coerceColor($args[0])) {
+            $num = is_array($args[3] ?? null) ? $args[3] : $args[1];
+            $alpha = $this->assertNumber($num);
+            if ($alpha > 1) {
+                $alpha = $alpha / 100;
+            }
+            $color[4] = $alpha;
+
+            return $color;
+        }
+
         list($h, $s, $l, $a) = $args;
 
         $color = $this->toRGB($h[1], $s[1], $l[1]);
